@@ -51,8 +51,7 @@ function addToCart() {
           fit="cover"
           sizes="sm:100vw md:50vw lg:25vw"
           :loading="preload ? undefined : 'lazy'"
-          :preload="preload"
-          :fetchpriority="preload ? 'high' : undefined"
+          :preload="preload ? { fetchPriority: 'high' } : false"
           class="size-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
         <span
@@ -85,7 +84,7 @@ function addToCart() {
       <div class="min-h-9">
         <Button
           type="button"
-          class="w-full rounded-lg transition-opacity duration-200 ease-out active:scale-[0.98] lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
+          class="w-full rounded-lg active:scale-[0.98]"
           :disabled="cannotAdd"
           @click="addToCart"
         >

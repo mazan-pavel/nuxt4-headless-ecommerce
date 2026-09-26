@@ -1,243 +1,343 @@
 <script setup lang="ts">
-import type { Category, ProductsResponse } from '#shared/types/product'
-import type { ProductSortField, SortOrder } from '#shared/types/filter'
+import type { Category, Product, ProductsResponse } from '#shared/types/product'
+import type { ProductListQuery } from '#shared/types/filter'
+import { categoryLabel } from '#shared/config/categoryLabels'
+import {
+  SORT_PRESETS,
+  sortPresetById,
+  sortPresetFromQuery,
+} from '#shared/config/sortPresets'
 
 useSeoMeta({
   title: 'Каталог товаров',
-  description: 'Каталог товаров с поиском, фильтром по категории и сортировкой.',
+  description: 'Каталог Atelier: поиск, категории и сортировка.',
   ogTitle: 'Каталог товаров',
-  ogDescription: 'Каталог товаров с поиском, фильтром по категории и сортировкой.',
+  ogDescription: 'Каталог Atelier: поиск, категории и сортировка.',
 })
 
 const {
   category,
+  search,
   sortBy,
   order,
-  page,
-  queryParams,
+  limit,
+  setSort,
   resetFilters,
 } = useCatalogFilter()
+
+const page = ref(1)
+const accumulated = ref<Product[]>([])
+const total = ref(0)
+
+const listQuery = computed((): ProductListQuery => {
+  const params: ProductListQuery = {
+    limit: limit.value,
+    skip: (page.value - 1) * limit.value,
+  }
+
+  const q = search.value.trim()
+  if (q !== '') {
+    params.q = q
+  }
+  if (category.value !== '') {
+    params.category = category.value
+  }
+  if (sortBy.value !== undefined) {
+    params.sortBy = sortBy.value
+  }
+  if (order.value !== undefined) {
+    params.order = order.value
+  }
+
+  return params
+})
 
 const { data: categories, status: categoriesStatus } = await useFetch<Category[]>('/api/categories')
 
 const { data, status } = await useFetch<ProductsResponse>('/api/products', {
-  query: queryParams,
+  query: listQuery,
+  watch: [listQuery],
 })
 
-const products = computed(() => data.value?.products ?? [])
-
-const hasNextPage = computed(() => {
-  if (!data.value) {
-    return false
+watch(data, (response) => {
+  if (!response) {
+    return
   }
-  return data.value.skip + data.value.products.length < data.value.total
+
+  total.value = response.total
+
+  if (page.value === 1) {
+    accumulated.value = response.products
+    return
+  }
+
+  const seen = new Set(accumulated.value.map(product => product.id))
+  const next = response.products.filter(product => !seen.has(product.id))
+  accumulated.value = [...accumulated.value, ...next]
+}, { immediate: true })
+
+watch(
+  [search, category, sortBy, order, limit],
+  () => {
+    page.value = 1
+  },
+)
+
+const hasMore = computed(() => accumulated.value.length < total.value)
+const isInitialPending = computed(
+  () => status.value === 'pending' && page.value === 1,
+)
+const isLoadingMore = computed(
+  () => status.value === 'pending' && page.value > 1,
+)
+
+const metaLabel = computed(() => {
+  if (isInitialPending.value) {
+    return 'Загрузка…'
+  }
+  if (total.value === 0) {
+    return ''
+  }
+  return `Показано ${accumulated.value.length} из ${total.value}`
 })
 
-function onSortByChange(event: Event) {
+const sortPresetId = computed(() =>
+  sortPresetFromQuery(sortBy.value, order.value),
+)
+
+function onSortPresetChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value
-  if (value === 'title' || value === 'price' || value === 'rating') {
-    sortBy.value = value
+  const preset = sortPresetById(value)
+  if (!preset || preset.id === 'default') {
+    setSort(undefined, undefined)
     return
   }
-  sortBy.value = undefined
+  setSort(preset.sortBy, preset.order)
 }
 
-function onOrderChange(event: Event) {
-  const value = (event.target as HTMLSelectElement).value
-  if (value === 'asc' || value === 'desc') {
-    order.value = value
-    return
-  }
-  order.value = undefined
+function clearSearch() {
+  search.value = ''
 }
 
-const sortByValue = computed(() => sortBy.value ?? '')
-const orderValue = computed(() => order.value ?? '')
-
-const sortFieldLabels: Record<ProductSortField, string> = {
-  title: 'Названию',
-  price: 'Цене',
-  rating: 'Рейтингу',
+function labelForCategory(item: Category): string {
+  return categoryLabel(item.slug, item.name)
 }
 
-const orderLabels: Record<SortOrder, string> = {
-  asc: 'По возрастанию',
-  desc: 'По убыванию',
+const route = useRoute()
+const router = useRouter()
+
+if (route.query.page !== undefined) {
+  const nextQuery = { ...route.query }
+  delete nextQuery.page
+  void router.replace({ query: nextQuery })
 }
+
+const sentinel = useTemplateRef<HTMLElement>('sentinel')
+
+useIntersectionObserver(
+  sentinel,
+  ([entry]) => {
+    if (!entry?.isIntersecting) {
+      return
+    }
+    if (!hasMore.value || status.value === 'pending') {
+      return
+    }
+    page.value += 1
+  },
+  { rootMargin: '200px' },
+)
 </script>
 
 <template>
-  <div class="space-y-8">
-    <header class="space-y-2">
-      <h1 class="text-3xl font-semibold tracking-tight">
+  <div class="space-y-6">
+    <header>
+      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">
         Каталог
       </h1>
-      <p class="text-muted-foreground">
-        Поиск, категории и сортировка.
-      </p>
     </header>
 
-    <div class="grid gap-8 lg:grid-cols-[16rem_1fr]">
-      <aside
-        class="space-y-6 rounded-xl border border-border/60 bg-card p-4"
-        aria-label="Фильтры каталога"
+    <div class="sticky top-[7.25rem] z-30 -mx-4 space-y-3 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur sm:top-[3.75rem] sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div
+        class="flex gap-2 overflow-x-auto pb-0.5"
+        role="group"
+        aria-label="Категории"
       >
-        <div class="space-y-2">
-          <h2 class="text-sm font-semibold">
-            Категории
-          </h2>
-          <div
-            v-if="categoriesStatus === 'pending'"
-            class="space-y-2"
-          >
-            <Skeleton
-              v-for="index in 6"
-              :key="index"
-              class="h-9 w-full"
-            />
-          </div>
-          <div
-            v-else
-            class="flex flex-col gap-1"
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              class="justify-start"
-              :aria-pressed="category === ''"
-              @click="category = ''"
-            >
-              Все
-            </Button>
-            <Button
-              v-for="item in categories"
-              :key="item.slug"
-              type="button"
-              variant="ghost"
-              class="justify-start"
-              :aria-pressed="category === item.slug"
-              @click="category = item.slug"
-            >
-              {{ item.name }}
-            </Button>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <h2 class="text-sm font-semibold">
-            Сортировка
-          </h2>
-          <label
-            class="block space-y-1 text-sm"
-            for="catalog-sort-by"
-          >
-            <span>Поле</span>
-            <select
-              id="catalog-sort-by"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              :value="sortByValue"
-              @change="onSortByChange"
-            >
-              <option value="">
-                По умолчанию
-              </option>
-              <option
-                v-for="(label, field) in sortFieldLabels"
-                :key="field"
-                :value="field"
-              >
-                {{ label }}
-              </option>
-            </select>
-          </label>
-          <label
-            class="block space-y-1 text-sm"
-            for="catalog-order"
-          >
-            <span>Порядок</span>
-            <select
-              id="catalog-order"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              :value="orderValue"
-              @change="onOrderChange"
-            >
-              <option value="">
-                По умолчанию
-              </option>
-              <option
-                v-for="(label, value) in orderLabels"
-                :key="value"
-                :value="value"
-              >
-                {{ label }}
-              </option>
-            </select>
-          </label>
-        </div>
-      </aside>
-
-      <div class="space-y-6">
-        <div
-          v-if="status === 'pending'"
-          class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4"
-        >
+        <template v-if="categoriesStatus === 'pending'">
           <Skeleton
             v-for="index in 8"
+            :key="index"
+            class="h-9 w-24 shrink-0 rounded-lg"
+          />
+        </template>
+        <template v-else>
+          <Button
+            type="button"
+            class="shrink-0 rounded-lg"
+            :class="category === ''
+              ? 'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+              : undefined"
+            :variant="category === '' ? 'default' : 'ghost'"
+            :aria-pressed="category === ''"
+            @click="category = ''"
+          >
+            Все
+          </Button>
+          <Button
+            v-for="item in categories"
+            :key="item.slug"
+            type="button"
+            class="shrink-0 rounded-lg"
+            :class="category === item.slug
+              ? 'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+              : undefined"
+            :variant="category === item.slug ? 'default' : 'ghost'"
+            :aria-pressed="category === item.slug"
+            @click="category = item.slug"
+          >
+            {{ labelForCategory(item) }}
+          </Button>
+        </template>
+      </div>
+
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex min-w-0 flex-wrap items-center gap-2">
+          <Badge
+            v-if="search"
+            variant="secondary"
+            class="gap-1.5 rounded-lg px-2.5 py-1 text-sm font-normal"
+          >
+            <span class="max-w-[12rem] truncate sm:max-w-xs">
+              Поиск: {{ search }}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              class="size-5 rounded-md"
+              aria-label="Очистить поиск"
+              @click="clearSearch"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="size-3.5"
+                aria-hidden="true"
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </Button>
+          </Badge>
+          <p
+            v-if="metaLabel"
+            class="text-xs text-muted-foreground"
+            aria-live="polite"
+          >
+            {{ metaLabel }}
+          </p>
+        </div>
+
+        <label
+          class="flex items-center gap-2 text-sm"
+          for="catalog-sort-preset"
+        >
+          <span class="shrink-0 text-xs text-muted-foreground">Сортировка</span>
+          <select
+            id="catalog-sort-preset"
+            class="flex h-9 min-w-[11rem] rounded-md border border-input bg-background px-3 text-sm"
+            :value="sortPresetId"
+            @change="onSortPresetChange"
+          >
+            <option
+              v-for="preset in SORT_PRESETS"
+              :key="preset.id"
+              :value="preset.id"
+            >
+              {{ preset.label }}
+            </option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div
+      v-if="isInitialPending"
+      class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4"
+    >
+      <Skeleton
+        v-for="index in 8"
+        :key="index"
+        class="min-h-[22rem] w-full rounded-xl"
+      />
+    </div>
+
+    <template v-else-if="accumulated.length > 0">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
+        <ProductCard
+          v-for="product in accumulated"
+          :key="product.id"
+          :product="product"
+        />
+      </div>
+
+      <div
+        v-if="isLoadingMore"
+        class="space-y-3"
+      >
+        <p class="text-center text-sm text-muted-foreground">
+          Подгружаем…
+        </p>
+        <div
+          class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4"
+          aria-hidden="true"
+        >
+          <Skeleton
+            v-for="index in 4"
             :key="index"
             class="min-h-[22rem] w-full rounded-xl"
           />
         </div>
-
-        <div
-          v-else-if="products.length > 0"
-          class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4"
-        >
-          <ProductCard
-            v-for="product in products"
-            :key="product.id"
-            :product="product"
-          />
-        </div>
-
-        <div
-          v-else
-          class="flex min-h-[22rem] flex-col items-start justify-center gap-4 rounded-lg border border-border p-6"
-        >
-          <p>Ничего не найдено.</p>
-          <Button
-            type="button"
-            @click="resetFilters()"
-          >
-            Сбросить фильтры
-          </Button>
-        </div>
-
-        <nav
-          v-if="status !== 'pending' && products.length > 0"
-          class="flex items-center justify-between gap-3"
-          aria-label="Страницы каталога"
-        >
-          <Button
-            type="button"
-            variant="outline"
-            :disabled="page <= 1"
-            @click="page = page - 1"
-          >
-            Назад
-          </Button>
-          <p class="text-sm text-muted-foreground">
-            Страница {{ page }}
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            :disabled="!hasNextPage"
-            @click="page = page + 1"
-          >
-            Вперёд
-          </Button>
-        </nav>
       </div>
+
+      <p
+        v-else-if="!hasMore"
+        class="text-center text-sm text-muted-foreground"
+      >
+        Все {{ total }} товаров
+      </p>
+
+      <div
+        ref="sentinel"
+        class="h-1 w-full"
+        aria-hidden="true"
+      />
+    </template>
+
+    <div
+      v-else
+      class="flex min-h-[22rem] flex-col items-start justify-center gap-4 rounded-lg border border-border p-6"
+    >
+      <p class="text-lg font-medium">
+        Ничего не найдено
+      </p>
+      <p
+        v-if="search"
+        class="text-sm text-muted-foreground"
+      >
+        По запросу «{{ search }}» нет совпадений.
+      </p>
+      <Button
+        type="button"
+        @click="resetFilters()"
+      >
+        Сбросить фильтры
+      </Button>
     </div>
   </div>
 </template>

@@ -151,9 +151,10 @@ useHead({
           width="800"
           height="800"
           fit="cover"
-          sizes="(min-width: 1024px) 50vw, 100vw"
-          preload
-          fetchpriority="high"
+          sizes="sm:100vw lg:50vw"
+          format="webp"
+          loading="eager"
+          :preload="{ fetchPriority: 'high' }"
           class="size-full object-cover"
         />
       </div>
@@ -167,13 +168,14 @@ useHead({
         >
           <Button
             type="button"
-            variant="outline"
-            class="h-auto w-auto p-0"
+            variant="ghost"
+            class="h-auto w-auto overflow-hidden rounded-xl p-0"
+            :class="activeIndex === index ? 'ring-2 ring-ring' : undefined"
             :aria-label="`Фото ${index + 1}: ${product.title}`"
             :aria-pressed="activeIndex === index"
             @click="activeIndex = index"
           >
-            <span class="block size-20 overflow-hidden rounded-xl bg-muted">
+            <span class="block size-20 overflow-hidden bg-muted">
               <NuxtImg
                 :src="image"
                 :alt="product.title"

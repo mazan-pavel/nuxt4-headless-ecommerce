@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ShoppingBag } from '@lucide/vue'
 import { useCartStore } from '~/stores/cart'
+
+const open = defineModel<boolean>('open', { required: true })
 
 const cart = useCartStore()
 
@@ -13,8 +14,6 @@ function discountedUnit(price: number, discountPercentage: number): number {
   return price * (1 - discountPercentage / 100)
 }
 
-const cartLabel = computed(() => `Корзина, товаров: ${cart.totalItems}`)
-
 function decrease(id: number, quantity: number) {
   cart.updateQuantity(id, quantity - 1)
 }
@@ -25,27 +24,7 @@ function increase(id: number, quantity: number) {
 </script>
 
 <template>
-  <Sheet>
-    <SheetTrigger as-child>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        class="relative"
-        :aria-label="cartLabel"
-      >
-        <ShoppingBag aria-hidden="true" />
-        <ClientOnly>
-          <Badge
-            v-if="cart.totalItems > 0"
-            class="absolute -right-2 -top-2 min-w-5 justify-center px-1"
-          >
-            {{ cart.totalItems }}
-          </Badge>
-        </ClientOnly>
-      </Button>
-    </SheetTrigger>
-
+  <Sheet v-model:open="open">
     <SheetContent
       side="right"
       class="flex w-full flex-col gap-4 sm:max-w-md"
@@ -57,24 +36,18 @@ function increase(id: number, quantity: number) {
         </SheetDescription>
       </SheetHeader>
 
-      <div
-        v-if="cart.items.length === 0"
-        class="flex flex-1 flex-col items-start justify-center gap-4"
-      >
-        <p class="text-sm text-muted-foreground">
-          Корзина пуста
-        </p>
+      <CartEmptyState v-if="cart.items.length === 0">
         <SheetClose as-child>
           <Button
             as-child
             class="rounded-lg active:scale-[0.98]"
           >
-            <NuxtLink to="/">
-              Перейти к покупкам
+            <NuxtLink to="/catalog">
+              Перейти в каталог
             </NuxtLink>
           </Button>
         </SheetClose>
-      </div>
+      </CartEmptyState>
 
       <template v-else>
         <ScrollArea class="min-h-0 flex-1 pr-3">
@@ -190,11 +163,15 @@ function increase(id: number, quantity: number) {
         <SheetFooter class="flex-col gap-3 sm:flex-col sm:gap-3">
           <p class="flex justify-between text-sm">
             <span>Сумма</span>
-            <span>{{ money.format(cart.totalPrice) }}</span>
+            <span
+              aria-live="polite"
+            >{{ money.format(cart.totalPrice) }}</span>
           </p>
           <p class="flex justify-between text-sm font-medium">
             <span>Со скидкой</span>
-            <span>{{ money.format(cart.discountedTotal) }}</span>
+            <span
+              aria-live="polite"
+            >{{ money.format(cart.discountedTotal) }}</span>
           </p>
           <Button
             type="button"

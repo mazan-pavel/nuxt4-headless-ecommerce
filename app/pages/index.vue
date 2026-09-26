@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import type { Category, ProductsResponse } from '#shared/types/product'
-import CategoryCard from '~/components/catalog/CategoryCard.vue'
+import {
+  HOME_FEATURED_CATEGORY_SLUGS,
+  HOME_SHELF_CATEGORY,
+  HOME_SHELF_TITLE,
+} from '#shared/config/storefront'
+import { categoryLabel } from '#shared/config/categoryLabels'
 
 interface CategoryTile {
   category: Category
@@ -9,31 +14,51 @@ interface CategoryTile {
 
 useSeoMeta({
   title: 'Atelier | Главная',
-  description: 'Atelier — тихая витрина: категории, поиск и корзина. Учебный кейс на Nuxt 4.',
+  description: 'Atelier — тихая витрина: категории, поиск и корзина.',
   ogTitle: 'Atelier | Главная',
-  ogDescription: 'Atelier — тихая витрина: категории, поиск и корзина. Учебный кейс на Nuxt 4.',
+  ogDescription: 'Atelier — тихая витрина: категории, поиск и корзина.',
 })
 
-const { data: categories } = await useFetch<Category[]>('/api/categories')
-
-const { data: popular, status: popularStatus } = await useFetch<ProductsResponse>('/api/products', {
-  query: {
-    limit: 4,
-    sortBy: 'rating',
-    order: 'desc',
+const { data: shelf, status: shelfStatus } = await useFetch<ProductsResponse>(
+  '/api/products',
+  {
+    query: {
+      category: HOME_SHELF_CATEGORY,
+      limit: 4,
+    },
   },
-})
+)
 
-const popularProducts = computed(() => popular.value?.products ?? [])
-const heroProduct = computed(() => popularProducts.value[0] ?? null)
+const shelfProducts = computed(() => shelf.value?.products ?? [])
+const heroProduct = computed(() => shelfProducts.value[0] ?? null)
 
-const { data: categoryTiles, status: categoryTilesStatus } = await useAsyncData(
+const { data: categoryTiles } = useAsyncData(
   'home-category-tiles',
   async (): Promise<CategoryTile[]> => {
-    const featured = (categories.value ?? []).slice(0, 8)
+    const categories = await $fetch<Category[]>('/api/categories')
+    const bySlug = new Map(categories.map(category => [category.slug, category]))
+    const featured: Category[] = []
+
+    for (const slug of HOME_FEATURED_CATEGORY_SLUGS) {
+      const match = bySlug.get(slug)
+      if (match) {
+        featured.push(match)
+      }
+    }
+
+    for (const category of categories) {
+      if (featured.length >= 8) {
+        break
+      }
+      if (!featured.some(item => item.slug === category.slug)) {
+        featured.push(category)
+      }
+    }
+
+    const selected = featured.slice(0, 8)
 
     return Promise.all(
-      featured.map(async (category): Promise<CategoryTile> => {
+      selected.map(async (category): Promise<CategoryTile> => {
         const response = await $fetch<ProductsResponse>('/api/products', {
           query: {
             category: category.slug,
@@ -42,12 +67,16 @@ const { data: categoryTiles, status: categoryTilesStatus } = await useAsyncData(
         })
 
         return {
-          category,
+          category: {
+            ...category,
+            name: categoryLabel(category.slug, category.name),
+          },
           thumbnail: response.products[0]?.thumbnail ?? null,
         }
       }),
     )
   },
+  { lazy: true },
 )
 </script>
 
@@ -59,9 +88,6 @@ const { data: categoryTiles, status: categoryTilesStatus } = await useAsyncData(
     >
       <div class="grid items-center gap-8 md:grid-cols-2 md:gap-10 lg:gap-12">
         <div class="space-y-5">
-          <p class="text-sm font-medium tracking-wide text-muted-foreground">
-            Atelier
-          </p>
           <h1
             id="hero-heading"
             class="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-6xl"
@@ -81,14 +107,15 @@ const { data: categoryTiles, status: categoryTilesStatus } = await useAsyncData(
           </Button>
         </div>
 
-        <div class="min-w-0">
+        <div class="order-first min-w-0 md:order-none">
           <Skeleton
-            v-if="popularStatus === 'pending' || !heroProduct"
+            v-if="!heroProduct"
             class="aspect-[4/5] w-full rounded-2xl"
           />
-          <div
+          <NuxtLink
             v-else
-            class="aspect-[4/5] overflow-hidden rounded-2xl bg-muted"
+            :to="`/product/${heroProduct.id}`"
+            class="block aspect-[4/5] overflow-hidden rounded-2xl bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <NuxtImg
               :src="heroProduct.thumbnail"
@@ -96,31 +123,38 @@ const { data: categoryTiles, status: categoryTilesStatus } = await useAsyncData(
               width="640"
               height="800"
               fit="cover"
-              sizes="sm:100vw md:50vw"
-              preload
-              fetchpriority="high"
-              class="size-full object-cover"
+              densities="1"
+              sizes="(max-width: 768px) 100vw, 640px"
+              format="webp"
+              loading="eager"
+              :preload="{ fetchPriority: 'high' }"
+              class="size-full object-cover transition-transform duration-300 hover:scale-105"
             />
-          </div>
+          </NuxtLink>
         </div>
       </div>
-      <p class="text-xs text-muted-foreground">
-        Учебный кейс на Nuxt 4
-      </p>
     </section>
 
     <section
       class="space-y-4"
       aria-labelledby="categories-heading"
     >
-      <h2
-        id="categories-heading"
-        class="text-2xl font-semibold tracking-tight"
-      >
-        Категории
-      </h2>
+      <div class="flex items-baseline justify-between gap-4">
+        <h2
+          id="categories-heading"
+          class="text-2xl font-semibold tracking-tight"
+        >
+          Категории
+        </h2>
+        <NuxtLink
+          to="/catalog"
+          class="shrink-0 text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Все
+        </NuxtLink>
+      </div>
       <div
-        v-if="categoryTilesStatus === 'pending'"
+        v-if="!categoryTiles"
         class="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4"
       >
         <Skeleton
@@ -129,41 +163,42 @@ const { data: categoryTiles, status: categoryTilesStatus } = await useAsyncData(
           class="aspect-[4/3] w-full rounded-xl"
         />
       </div>
-      <template v-else>
-        <ul class="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4">
-          <li
-            v-for="tile in categoryTiles"
-            :key="tile.category.slug"
-          >
-            <CategoryCard
-              :category="tile.category"
-              :image="tile.thumbnail"
-            />
-          </li>
-        </ul>
-        <p>
-          <NuxtLink
-            to="/catalog"
-            class="text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Все категории
-          </NuxtLink>
-        </p>
-      </template>
+      <ul
+        v-else
+        class="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-6 lg:grid-cols-4"
+      >
+        <li
+          v-for="tile in categoryTiles"
+          :key="tile.category.slug"
+        >
+          <LazyCategoryCard
+            :category="tile.category"
+            :image="tile.thumbnail"
+          />
+        </li>
+      </ul>
     </section>
 
     <section
       class="space-y-4"
-      aria-labelledby="popular-heading"
+      aria-labelledby="shelf-heading"
     >
-      <h2
-        id="popular-heading"
-        class="text-2xl font-semibold tracking-tight"
-      >
-        Популярные товары
-      </h2>
+      <div class="flex items-baseline justify-between gap-4">
+        <h2
+          id="shelf-heading"
+          class="text-2xl font-semibold tracking-tight"
+        >
+          {{ HOME_SHELF_TITLE }}
+        </h2>
+        <NuxtLink
+          :to="`/catalog?category=${HOME_SHELF_CATEGORY}`"
+          class="shrink-0 text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Смотреть все
+        </NuxtLink>
+      </div>
       <div
-        v-if="popularStatus === 'pending'"
+        v-if="shelfStatus === 'pending'"
         class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4"
       >
         <Skeleton
@@ -176,11 +211,10 @@ const { data: categoryTiles, status: categoryTilesStatus } = await useAsyncData(
         v-else
         class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 md:grid-cols-3 lg:grid-cols-4"
       >
-        <ProductCard
-          v-for="(product, index) in popularProducts"
+        <LazyProductCard
+          v-for="product in shelfProducts"
           :key="product.id"
           :product="product"
-          :preload="index === 0"
         />
       </div>
     </section>

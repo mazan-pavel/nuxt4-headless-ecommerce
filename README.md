@@ -1,6 +1,6 @@
 # Atelier
 
-Витрина на **Nuxt 4**: каталог, карточка товара, корзина и оформление заказа. Товары приходят из [DummyJSON](https://dummyjson.com/) через Nitro BFF.
+Витрина на **Nuxt 4**: каталог, карточка товара, корзина и оформление заказа. Товары приходят из [DummyJSON](https://dummyjson.com/) через Nitro BFF. Вживую: [https://nuxt4-headless-ecommerce.vercel.app/](https://nuxt4-headless-ecommerce.vercel.app/).
 
 Автор: [Pavel Mazan](https://github.com/mazan-pavel) · лицензия [MIT](LICENSE)
 

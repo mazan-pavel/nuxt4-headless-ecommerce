@@ -70,7 +70,18 @@ export function useCatalogFilter() {
     },
     set(value: string) {
       const next = value.trim()
-      void replaceQuery({ search: next === '' ? undefined : next }, true)
+      const searchParam = next === '' ? undefined : next
+      const onCatalog = route.path === '/catalog'
+
+      if (onCatalog) {
+        void replaceQuery({ search: searchParam }, true)
+        return
+      }
+
+      void router.push({
+        path: '/catalog',
+        query: searchParam === undefined ? undefined : { search: searchParam },
+      })
     },
   })
 
@@ -162,6 +173,16 @@ export function useCatalogFilter() {
     return params
   })
 
+  function setSort(
+    nextSortBy: ProductSortField | undefined,
+    nextOrder: SortOrder | undefined,
+  ) {
+    void replaceQuery({
+      sortBy: nextSortBy,
+      order: nextOrder,
+    }, true)
+  }
+
   function resetFilters() {
     const next: LocationQueryRaw = { ...route.query }
     for (const key of FILTER_KEYS) {
@@ -178,6 +199,7 @@ export function useCatalogFilter() {
     page,
     limit,
     queryParams,
+    setSort,
     resetFilters,
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "nuxt4-headless-ecommerce",
   "version": "1.0.0",
-  "description": "Atelier storefront: Nuxt 4, shadcn-vue, and a DummyJSON BFF",
+  "description": "Atelier storefront: Nuxt 4, shadcn-vue, and a DummyJSON BFF. Live: https://nuxt4-headless-ecommerce.vercel.app/",
   "type": "module",
   "private": true,
   "author": {
@@ -27,7 +27,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
-    "audit": "npx unlighthouse-ci --site http://localhost:3000 --budget 95"
+    "audit": "node -e \"Promise.all(['http://localhost:3000/','http://localhost:3000/catalog'].map(u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u+' '+r.status)}))).then(()=>console.log('warmup ok'))\" && npx unlighthouse-ci --site http://localhost:3000 --budget 95"
   },
   "dependencies": {
     "@lucide/vue": "^1.48.0",
@@ -41,6 +41,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "eslint": "^10.11.0",
+    "h3-compression": "^1.1.0",
     "nuxt": "^4.5.2",
     "pinia": "^4.0.3",
     "reka-ui": "^2.10.5",

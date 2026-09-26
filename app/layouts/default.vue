@@ -34,7 +34,7 @@ const cartStore = useCartStore()
     <footer class="border-t border-border">
       <div class="mx-auto w-full max-w-7xl px-4 py-4 text-sm text-muted-foreground sm:px-6 lg:px-8">
         <p>
-          Atelier · учебный кейс на Nuxt 4 ·
+          Atelier · демо-ассортимент ·
           <a
             href="https://github.com/mazan-pavel/nuxt4-headless-ecommerce"
             class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

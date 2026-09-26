@@ -64,20 +64,10 @@ async function submitOrder() {
         </Button>
       </div>
 
-      <div
+      <CartEmptyState
         v-else-if="cart.totalItems === 0"
-        class="flex min-h-[24rem] flex-col items-start justify-center gap-4"
-      >
-        <p>Ваша корзина пуста</p>
-        <Button
-          as-child
-          class="rounded-lg active:scale-[0.98]"
-        >
-          <NuxtLink to="/catalog">
-            Вернуться в каталог
-          </NuxtLink>
-        </Button>
-      </div>
+        class="min-h-[24rem]"
+      />
 
       <form
         v-else
