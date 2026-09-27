@@ -35,6 +35,8 @@ npm run preview
 npm run audit
 ```
 
+SEO / AI crawlers: `/robots.txt`, `/sitemap.xml`, `/llms.txt`. Публичный origin задаётся через `NUXT_PUBLIC_SITE_URL` (см. `.env.example`).
+
 ## Лицензия
 
 MIT © Pavel Mazan ([mazan-pavel](https://github.com/mazan-pavel))

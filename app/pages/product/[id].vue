@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Product } from '#shared/types/product'
+import { categoryLabel } from '#shared/config/categoryLabels'
 
 const route = useRoute()
 const cart = useCartStore()
@@ -73,68 +74,99 @@ function addToCart() {
   cart.addItem(product.value, quantity.value)
 }
 
-useSeoMeta({
-  title: () => product.value
-    ? `${product.value.title} | Nuxt 4 Headless E-Commerce`
-    : 'Товар',
-  description: () => product.value?.description ?? '',
-  ogTitle: () => product.value?.title ?? '',
-  ogDescription: () => product.value?.description ?? '',
-  ogImage: () => product.value?.thumbnail ?? '',
+useProductWebMcpTools({
+  product: () => product.value,
+  quantity: () => quantity.value,
 })
 
-const productJsonLd = computed(() => {
+usePageSeo({
+  title: () => product.value?.title ?? 'Товар',
+  description: () => product.value?.description ?? '',
+  path: () => product.value ? `/product/${product.value.id}` : undefined,
+  ogImage: () => product.value?.thumbnail,
+  ogType: 'product',
+})
+
+const { absoluteUrl } = useSiteUrl()
+
+useJsonLd(() => {
   const item = product.value
   if (!item) {
-    return ''
+    return null
   }
+
+  const productUrl = absoluteUrl(`/product/${item.id}`)
   const price = (item.price * (1 - item.discountPercentage / 100)).toFixed(2)
-  const schema: {
-    '@context': 'https://schema.org'
-    '@type': 'Product'
-    name: string
-    description: string
-    image: string[]
-    sku: string
-    brand?: { '@type': 'Brand', name: string }
-    offers: {
-      '@type': 'Offer'
-      price: string
-      priceCurrency: 'USD'
-      availability: string
-    }
-  } = {
+  const images = item.images.length > 0 ? item.images : [item.thumbnail]
+
+  const productSchema: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Product',
+    '@id': `${productUrl}#product`,
     name: item.title,
     description: item.description,
-    image: item.images.length > 0 ? item.images : [item.thumbnail],
+    image: images,
     sku: item.sku,
+    url: productUrl,
+    category: item.category,
     offers: {
       '@type': 'Offer',
+      url: productUrl,
       price,
       priceCurrency: 'USD',
       availability: item.stock > 0
         ? 'https://schema.org/InStock'
         : 'https://schema.org/OutOfStock',
+      itemCondition: 'https://schema.org/NewCondition',
     },
   }
-  if (item.brand) {
-    schema.brand = { '@type': 'Brand', name: item.brand }
-  }
-  return JSON.stringify(schema)
-})
 
-useHead({
-  script: computed(() => {
-    if (productJsonLd.value === '') {
-      return []
+  if (item.brand) {
+    productSchema.brand = { '@type': 'Brand', name: item.brand }
+  }
+
+  if (item.reviews.length > 0) {
+    productSchema.aggregateRating = {
+      '@type': 'AggregateRating',
+      ratingValue: item.rating.toFixed(1),
+      reviewCount: String(item.reviews.length),
+      bestRating: '5',
+      worstRating: '1',
     }
-    return [{
-      type: 'application/ld+json',
-      children: productJsonLd.value,
-    }]
-  }),
+  }
+
+  const breadcrumb: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Главная',
+        item: absoluteUrl('/'),
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Каталог',
+        item: absoluteUrl('/catalog'),
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: categoryLabel(item.category, item.category),
+        item: absoluteUrl(`/catalog?category=${encodeURIComponent(item.category)}`),
+      },
+      {
+        '@type': 'ListItem',
+        position: 4,
+        name: item.title,
+        item: productUrl,
+      },
+    ],
+  }
+
+  return [productSchema, breadcrumb]
 })
 </script>
 

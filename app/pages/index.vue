@@ -12,11 +12,10 @@ interface CategoryTile {
   thumbnail: string | null
 }
 
-useSeoMeta({
-  title: 'Atelier | Главная',
+usePageSeo({
+  title: 'Главная',
   description: 'Atelier — тихая витрина: категории, поиск и корзина.',
-  ogTitle: 'Atelier | Главная',
-  ogDescription: 'Atelier — тихая витрина: категории, поиск и корзина.',
+  path: '/',
 })
 
 const { data: shelf, status: shelfStatus } = await useFetch<ProductsResponse>(
@@ -171,7 +170,7 @@ const { data: categoryTiles } = useAsyncData(
           v-for="tile in categoryTiles"
           :key="tile.category.slug"
         >
-          <LazyCategoryCard
+          <LazyCatalogCategoryCard
             :category="tile.category"
             :image="tile.thumbnail"
           />

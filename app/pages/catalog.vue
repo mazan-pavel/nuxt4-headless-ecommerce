@@ -8,11 +8,54 @@ import {
   sortPresetFromQuery,
 } from '#shared/config/sortPresets'
 
-useSeoMeta({
+const route = useRoute()
+const { absoluteUrl } = useSiteUrl()
+
+usePageSeo({
   title: 'Каталог товаров',
   description: 'Каталог Atelier: поиск, категории и сортировка.',
-  ogTitle: 'Каталог товаров',
-  ogDescription: 'Каталог Atelier: поиск, категории и сортировка.',
+  path: () => {
+    const categoryParam = route.query.category
+    const slug = typeof categoryParam === 'string' ? categoryParam : ''
+    return slug !== '' ? `/catalog?category=${encodeURIComponent(slug)}` : '/catalog'
+  },
+})
+
+useJsonLd(() => {
+  const categoryParam = route.query.category
+  const slug = typeof categoryParam === 'string' ? categoryParam : ''
+  const items: Array<{
+    '@type': 'ListItem'
+    position: number
+    name: string
+    item: string
+  }> = [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: 'Главная',
+      item: absoluteUrl('/'),
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: 'Каталог',
+      item: absoluteUrl('/catalog'),
+    },
+  ]
+  if (slug !== '') {
+    items.push({
+      '@type': 'ListItem',
+      position: 3,
+      name: categoryLabel(slug, slug),
+      item: absoluteUrl(`/catalog?category=${encodeURIComponent(slug)}`),
+    })
+  }
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items,
+  }
 })
 
 const {
@@ -123,7 +166,6 @@ function labelForCategory(item: Category): string {
   return categoryLabel(item.slug, item.name)
 }
 
-const route = useRoute()
 const router = useRouter()
 
 if (route.query.page !== undefined) {

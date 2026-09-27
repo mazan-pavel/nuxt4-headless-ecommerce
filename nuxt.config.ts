@@ -1,6 +1,12 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import {
+  DEFAULT_SITE_URL,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+} from './shared/config/site'
+
 export default defineNuxtConfig({
-  ssr:true,
+  ssr: true,
   compatibilityDate: '2025-07-15',
   future: {
     compatibilityVersion: 4,
@@ -17,9 +23,26 @@ export default defineNuxtConfig({
     '@nuxt/fonts',
     'h3-compression/nuxt',
   ],
+  runtimeConfig: {
+    public: {
+      siteUrl: DEFAULT_SITE_URL,
+    },
+  },
   app: {
     head: {
       htmlAttrs: { lang: 'ru' },
+      titleTemplate: `%s · ${SITE_NAME}`,
+      meta: [
+        { name: 'description', content: SITE_DESCRIPTION },
+        { property: 'og:site_name', content: SITE_NAME },
+        { property: 'og:locale', content: 'ru_RU' },
+        { property: 'og:type', content: 'website' },
+        { name: 'twitter:card', content: 'summary_large_image' },
+      ],
+      link: [
+        { rel: 'alternate', type: 'text/plain', href: '/llms.txt', title: 'llms.txt' },
+        { rel: 'ai-catalog', href: '/.well-known/ai-catalog.json' },
+      ],
     },
   },
   tailwindcss: {
@@ -53,6 +76,29 @@ export default defineNuxtConfig({
     '/': {
       swr: 60,
       headers: { 'cache-control': 'public, max-age=0, must-revalidate' },
+    },
+    '/catalog': {
+      swr: 60,
+      headers: { 'cache-control': 'public, max-age=0, must-revalidate' },
+    },
+    '/product/**': {
+      swr: 300,
+      headers: { 'cache-control': 'public, max-age=0, must-revalidate' },
+    },
+    '/checkout': {
+      headers: { 'x-robots-tag': 'noindex, nofollow' },
+    },
+    '/sitemap.xml': {
+      headers: { 'cache-control': 'public, max-age=3600' },
+    },
+    '/robots.txt': {
+      headers: { 'cache-control': 'public, max-age=3600' },
+    },
+    '/llms.txt': {
+      headers: { 'cache-control': 'public, max-age=3600' },
+    },
+    '/.well-known/ai-catalog.json': {
+      headers: { 'cache-control': 'public, max-age=3600' },
     },
     '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
   },

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 const cart = useCartStore()
 
-useSeoMeta({
+usePageSeo({
   title: 'Оформление заказа',
   description: 'Доставка и оплата заказа из корзины.',
-  ogTitle: 'Оформление заказа',
-  ogDescription: 'Доставка и оплата заказа из корзины.',
+  path: '/checkout',
+  robots: 'noindex, nofollow',
 })
 
 const money = new Intl.NumberFormat('ru-RU', {
@@ -25,17 +25,40 @@ function discountedUnit(price: number, discountPercentage: number): number {
   return price * (1 - discountPercentage / 100)
 }
 
-async function submitOrder() {
-  if (isSubmitting.value || cart.totalItems === 0) {
+async function placeOrder(): Promise<{ ok: true, orderId: string } | { ok: false, error: string }> {
+  if (isSubmitting.value) {
+    return { ok: false, error: 'Order submission is already in progress.' }
+  }
+  if (cart.totalItems === 0) {
+    return { ok: false, error: 'Cart is empty.' }
+  }
+
+  isSubmitting.value = true
+  try {
+    await new Promise<void>(resolve => {
+      setTimeout(resolve, 1000)
+    })
+    const id = `#ORD-${Math.floor(10000 + Math.random() * 90000)}`
+    orderId.value = id
+    cart.clearCart()
+    return { ok: true, orderId: id }
+  }
+  finally {
+    isSubmitting.value = false
+  }
+}
+
+async function onCheckoutSubmit(event: Event) {
+  event.preventDefault()
+  const submitEvent = event as AgentSubmitEvent
+  const resultPromise = placeOrder()
+
+  if (submitEvent.agentInvoked && typeof submitEvent.respondWith === 'function') {
+    submitEvent.respondWith(resultPromise)
     return
   }
-  isSubmitting.value = true
-  await new Promise<void>(resolve => {
-    setTimeout(resolve, 1000)
-  })
-  orderId.value = `#ORD-${Math.floor(10000 + Math.random() * 90000)}`
-  cart.clearCart()
-  isSubmitting.value = false
+
+  await resultPromise
 }
 </script>
 
@@ -71,8 +94,10 @@ async function submitOrder() {
 
       <form
         v-else
+        toolname="placeOrder"
+        tooldescription="Place an order for the items currently in the cart using delivery and payment details."
         class="grid gap-8 lg:grid-cols-2"
-        @submit.prevent="submitOrder"
+        @submit="onCheckoutSubmit"
       >
         <fieldset class="space-y-4">
           <legend class="text-lg font-semibold">
@@ -89,6 +114,7 @@ async function submitOrder() {
               name="name"
               autocomplete="name"
               required
+              toolparamdescription="Customer full name for delivery."
             />
           </div>
           <div class="space-y-1">
@@ -103,6 +129,7 @@ async function submitOrder() {
               type="email"
               autocomplete="email"
               required
+              toolparamdescription="Customer email address for order confirmation."
             />
           </div>
           <div class="space-y-1">
@@ -117,6 +144,7 @@ async function submitOrder() {
               type="tel"
               autocomplete="tel"
               required
+              toolparamdescription="Customer phone number for delivery contact."
             />
           </div>
           <div class="space-y-1">
@@ -130,6 +158,7 @@ async function submitOrder() {
               name="address"
               autocomplete="street-address"
               required
+              toolparamdescription="Street address where the order should be delivered."
             />
           </div>
           <fieldset class="space-y-2">
@@ -143,6 +172,7 @@ async function submitOrder() {
                 name="payment"
                 value="card"
                 required
+                toolparamdescription="Pay with card."
               >
               Карта
             </label>
@@ -152,6 +182,7 @@ async function submitOrder() {
                 type="radio"
                 name="payment"
                 value="cash"
+                toolparamdescription="Pay with cash on delivery."
               >
               Наличные
             </label>

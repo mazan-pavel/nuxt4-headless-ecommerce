@@ -32,16 +32,39 @@ const cartStore = useCartStore()
     </div>
 
     <footer class="border-t border-border">
-      <div class="mx-auto w-full max-w-7xl px-4 py-4 text-sm text-muted-foreground sm:px-6 lg:px-8">
+      <div class="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
         <p>
-          Atelier · демо-ассортимент ·
+          Atelier · демо-ассортимент
+        </p>
+        <nav
+          class="flex flex-wrap gap-x-4 gap-y-1"
+          aria-label="Служебные ссылки"
+        >
+          <NuxtLink
+            to="/catalog"
+            class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Каталог
+          </NuxtLink>
+          <a
+            href="/sitemap.xml"
+            class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Sitemap
+          </a>
+          <a
+            href="/llms.txt"
+            class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            llms.txt
+          </a>
           <a
             href="https://github.com/mazan-pavel/nuxt4-headless-ecommerce"
             class="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Репозиторий
           </a>
-        </p>
+        </nav>
       </div>
     </footer>
   </div>
