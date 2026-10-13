@@ -1,0 +1,15 @@
+export const ASSISTANT_MAX_TOKENS = 500
+
+export const ASSISTANT_MAX_ITERATIONS = 4
+
+export const ASSISTANT_SEARCH_FETCH_LIMIT = 30
+
+export const ASSISTANT_SEARCH_RESULT_LIMIT = 5
+
+export const ASSISTANT_CART_MIN_QUANTITY = 1
+
+export const ASSISTANT_CART_MAX_QUANTITY = 5
+
+export const ASSISTANT_DESCRIPTION_LIMIT = 800
+
+export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'

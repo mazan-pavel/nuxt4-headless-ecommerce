@@ -17,7 +17,7 @@ export function useJsonLd(
     return {
       script: list.map(schema => ({
         type: 'application/ld+json' as const,
-        children: JSON.stringify(schema),
+        innerHTML: JSON.stringify(schema),
       })),
     }
   })

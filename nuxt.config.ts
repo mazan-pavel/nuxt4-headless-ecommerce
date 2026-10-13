@@ -41,7 +41,7 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'alternate', type: 'text/plain', href: '/llms.txt', title: 'llms.txt' },
-        { rel: 'ai-catalog', href: '/.well-known/ai-catalog.json' },
+        { rel: 'ai-catalog' as 'alternate', href: '/.well-known/ai-catalog.json' },
       ],
     },
   },

@@ -46,7 +46,8 @@ export function usePageSeo(input: PageSeoInput) {
     ogTitle: () => title.value,
     ogDescription: () => description.value,
     ogUrl: () => canonical.value,
-    ogType: () => ogType.value,
+    // Open Graph allows product; unhead's union does not list it.
+    ogType: () => ogType.value as 'website',
     ogSiteName: SITE_NAME,
     ogImage: () => ogImage.value,
     twitterCard: 'summary_large_image',
