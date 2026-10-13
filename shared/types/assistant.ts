@@ -37,3 +37,11 @@ export type AssistantEvent =
 export interface AssistantRequest {
   messages: AssistantClientMessage[]
 }
+
+/** Client-side chat row (products stay on the assistant turn for the UI). */
+export interface AssistantChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  products?: AssistantProductCard[]
+}

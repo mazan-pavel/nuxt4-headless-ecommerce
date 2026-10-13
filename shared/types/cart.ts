@@ -1,3 +1,11 @@
+import type { Product } from './product'
+
+/** Fields required to add a line to the cart (full Product is not needed). */
+export type CartProductInput = Pick<
+  Product,
+  'id' | 'title' | 'price' | 'discountPercentage' | 'thumbnail' | 'stock'
+>
+
 export interface CartItem {
   id: number
   title: string

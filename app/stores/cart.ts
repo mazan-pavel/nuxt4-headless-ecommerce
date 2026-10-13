@@ -1,7 +1,6 @@
 import { useStorage } from '@vueuse/core'
 import { skipHydrate } from 'pinia'
-import type { CartItem } from '#shared/types/cart'
-import type { Product } from '#shared/types/product'
+import type { CartItem, CartProductInput } from '#shared/types/cart'
 
 function unitDiscountedPrice(price: number, discountPercentage: number): number {
   return price * (1 - discountPercentage / 100)
@@ -31,7 +30,7 @@ export const useCartStore = defineStore('cart', () => {
     ),
   )
 
-  function addItem(product: Product, quantity = 1): void {
+  function addItem(product: CartProductInput, quantity = 1): void {
     const add = Math.max(1, Math.trunc(quantity))
     const existing = items.value.find(item => item.id === product.id)
 
