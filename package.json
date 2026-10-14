@@ -1,7 +1,7 @@
 {
   "name": "nuxt4-headless-ecommerce",
   "version": "1.0.0",
-  "description": "Atelier storefront: Nuxt 4, shadcn-vue, and a DummyJSON BFF. Live: https://nuxt4-headless-ecommerce.vercel.app/",
+  "description": "Atelier storefront on Nuxt 4 with an OpenRouter chat consultant, DummyJSON BFF, and Pinia cart. Live: https://nuxt4-headless-ecommerce.vercel.app/",
   "type": "module",
   "private": true,
   "author": {
