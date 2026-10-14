@@ -14,6 +14,7 @@ import {
 import { parseAssistantRequest } from '../utils/assistant-input'
 import { ASSISTANT_SYSTEM_PROMPT } from '../utils/assistant-prompt'
 import { createShownNoteFilter, formatShownNote } from '../utils/assistant-text'
+import { enforceAssistantRateLimit } from '../utils/assistant-rate-limit'
 import { ASSISTANT_TOOLS, runAssistantTool } from '../utils/assistant-tools'
 
 interface PendingToolCall {
@@ -218,6 +219,17 @@ export default defineEventHandler(async (event) => {
       statusCode: 503,
       statusMessage: 'Service Unavailable',
       message: unavailable,
+    })
+  }
+
+  const rate = await enforceAssistantRateLimit(event)
+  if (!rate.ok) {
+    throw createError({
+      statusCode: rate.statusCode,
+      statusMessage: rate.statusCode === 429
+        ? 'Too Many Requests'
+        : 'Service Unavailable',
+      message: rate.message,
     })
   }
 
