@@ -27,6 +27,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
+    "eval:assistant": "node scripts/eval-assistant.mjs",
     "audit": "node -e \"Promise.all(['http://localhost:3000/','http://localhost:3000/catalog'].map(u=>fetch(u).then(r=>{if(!r.ok)throw new Error(u+' '+r.status)}))).then(()=>console.log('warmup ok'))\" && npx unlighthouse-ci --site http://localhost:3000 --budget 95"
   },
   "dependencies": {
