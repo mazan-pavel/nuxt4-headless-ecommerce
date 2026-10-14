@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AssistantWidget from '~/components/assistant/AssistantWidget.vue'
 import Header from '~/components/layout/Header.vue'
 
 const cartStore = useCartStore()
@@ -67,5 +68,9 @@ const cartStore = useCartStore()
         </nav>
       </div>
     </footer>
+
+    <ClientOnly>
+      <AssistantWidget />
+    </ClientOnly>
   </div>
 </template>
