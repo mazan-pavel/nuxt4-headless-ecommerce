@@ -1,6 +1,13 @@
 import type { AssistantShownProduct } from '#shared/types/assistant'
 
-const SHOWN_MARKERS = ['[показано пользователю', 'показано пользователю'] as const
+const SHOWN_MARKERS = [
+  '[показано пользователю',
+  'показано пользователю',
+  '[展示给用户',
+  '展示给用户',
+  '[shown to user',
+  'shown to user',
+] as const
 const SHOWN_HOLD = Math.max(...SHOWN_MARKERS.map(marker => marker.length)) - 1
 
 export function formatShownNote(items: readonly AssistantShownProduct[]): string {

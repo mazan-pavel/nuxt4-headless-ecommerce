@@ -70,11 +70,11 @@ export const ASSISTANT_TOOLS: ChatCompletionTool[] = [
           },
           category: {
             type: 'string',
-            description: 'Category slug such as beauty or furniture',
+            description: 'Exact DummyJSON slug only, e.g. mens-watches, womens-watches, beauty. Never invent watches or accessories.',
           },
           max_price: {
             type: 'number',
-            description: 'Maximum discounted price in USD',
+            description: 'Maximum discounted price in USD. Put the budget here, not in query.',
           },
           sort: {
             type: 'string',
@@ -222,82 +222,252 @@ async function loadProduct(id: number): Promise<Product | undefined> {
   }
 }
 
+/** Everyday words models invent → real DummyJSON category slugs. */
+const CATEGORY_ALIASES: Record<string, readonly string[]> = {
+  watches: ['mens-watches', 'womens-watches'],
+  watch: ['mens-watches', 'womens-watches'],
+  clocks: ['mens-watches', 'womens-watches'],
+  clock: ['mens-watches', 'womens-watches'],
+  bags: ['womens-bags'],
+  bag: ['womens-bags'],
+  handbags: ['womens-bags'],
+  shoes: ['mens-shoes', 'womens-shoes'],
+  shirts: ['mens-shirts', 'tops'],
+  accessories: ['mobile-accessories', 'sports-accessories', 'kitchen-accessories'],
+  iphones: ['smartphones'],
+  iphone: ['smartphones'],
+  phones: ['smartphones'],
+  phone: ['smartphones'],
+  smartphones: ['smartphones'],
+  smartphone: ['smartphones'],
+}
+
+function normalizeSearchQuery(raw: string | undefined): string | undefined {
+  if (raw === undefined) {
+    return undefined
+  }
+  let q = raw.trim()
+  if (q === '') {
+    return undefined
+  }
+  // Budget belongs in max_price; strip phrases like "under $50".
+  q = q
+    .replace(/\b(under|below|up to|less than|до)\s*\$?\s*\d+([.,]\d+)?\b/gi, ' ')
+    .replace(/\$\s*\d+([.,]\d+)?/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (q === '') {
+    return undefined
+  }
+  // DummyJSON search is weak on plurals: "watches" → 0, "watch" → hits.
+  if (q.length > 3 && q.endsWith('s') && !q.endsWith('ss')) {
+    return q.slice(0, -1)
+  }
+  return q
+}
+
+function suggestCategorySlugs(requested: string, slugs: readonly string[]): string[] {
+  const aliases = CATEGORY_ALIASES[requested]
+  if (aliases !== undefined) {
+    return aliases.filter(slug => slugs.includes(slug))
+  }
+  const token = requested.replace(/-/g, '')
+  return slugs
+    .filter(slug => slug.includes(requested) || requested.includes(slug) || slug.replace(/-/g, '').includes(token))
+    .slice(0, 5)
+}
+
+function mergeById(lists: Product[][]): Product[] {
+  const byId = new Map<number, Product>()
+  for (const list of lists) {
+    for (const product of list) {
+      byId.set(product.id, product)
+    }
+  }
+  return [...byId.values()]
+}
+
+function sortProducts(
+  products: Product[],
+  sort: 'price_asc' | 'rating_desc' | undefined,
+): Product[] {
+  if (sort === 'price_asc') {
+    return [...products].sort((left, right) => {
+      const diff = discountedUnit(left.price, left.discountPercentage)
+        - discountedUnit(right.price, right.discountPercentage)
+      return diff !== 0 ? diff : left.id - right.id
+    })
+  }
+  if (sort === 'rating_desc') {
+    return [...products].sort((left, right) => {
+      const diff = right.rating - left.rating
+      return diff !== 0 ? diff : left.id - right.id
+    })
+  }
+  return products
+}
+
+async function fetchProductsForSearch(
+  query: string | undefined,
+  category: string | undefined,
+): Promise<Product[]> {
+  const data = await fetchDummyJsonProducts({
+    q: query,
+    category,
+    limit: ASSISTANT_SEARCH_FETCH_LIMIT,
+    skip: 0,
+  })
+  return data.products
+}
+
+async function loadProductsRobust(
+  query: string | undefined,
+  categories: readonly string[] | undefined,
+): Promise<Product[]> {
+  try {
+    if (categories !== undefined && categories.length > 0) {
+      const lists = await Promise.all(
+        categories.map(async (category) => {
+          // Prefer category listing: DummyJSON search("watches") returns 0 hits.
+          let products = await fetchProductsForSearch(undefined, category)
+          if (products.length === 0 && query !== undefined) {
+            products = await fetchProductsForSearch(query, category)
+          }
+          return products
+        }),
+      )
+      const merged = mergeById(lists)
+      if (merged.length > 0) {
+        return merged
+      }
+    }
+
+    if (query !== undefined) {
+      return await fetchProductsForSearch(query, undefined)
+    }
+
+    if (categories !== undefined && categories.length === 1) {
+      return await fetchProductsForSearch(undefined, categories[0])
+    }
+    return []
+  }
+  catch {
+    throw new Error('Catalog request failed')
+  }
+}
+
 async function searchProducts(args: Record<string, unknown>): Promise<AssistantToolResult> {
   const parsed = searchArgsSchema.safeParse(args)
   if (!parsed.success) {
     return toolError('Invalid arguments for search_products')
   }
 
-  const { query, category, sort } = parsed.data
+  const sort = parsed.data.sort
   const maxPrice = parsed.data.max_price
+  const query = normalizeSearchQuery(parsed.data.query)
+  const categoryRaw = parsed.data.category
+
   if (maxPrice !== undefined && (maxPrice <= 0 || maxPrice > 1_000_000)) {
     return toolError('Invalid max_price')
   }
-  if (query === undefined && category === undefined) {
+  if (query === undefined && categoryRaw === undefined) {
     return toolError('Provide query or category')
   }
-  if (category !== undefined && !CATEGORY_SLUG_RE.test(category)) {
+  if (categoryRaw !== undefined && !CATEGORY_SLUG_RE.test(categoryRaw)) {
     return toolError('Unknown category')
   }
 
-  if (category !== undefined) {
-    let slugs: string[]
-    try {
-      slugs = await getAssistantCategorySlugs()
+  let slugs: string[] = []
+  try {
+    slugs = await getAssistantCategorySlugs()
+  }
+  catch {
+    return toolError('Category list is unavailable')
+  }
+
+  let categories: string[] | undefined
+  if (categoryRaw !== undefined) {
+    if (slugs.includes(categoryRaw)) {
+      categories = [categoryRaw]
     }
-    catch {
-      return toolError('Category list is unavailable')
-    }
-    if (!slugs.includes(category)) {
-      return {
-        forModel: { error: 'Unknown category', categories: slugs },
-        events: [],
+    else {
+      const suggestions = suggestCategorySlugs(categoryRaw, slugs)
+      if (suggestions.length > 0) {
+        categories = suggestions
+      }
+      else if (query !== undefined) {
+        // Invented slug (e.g. mens-bikes): ignore category, search by query only.
+        categories = undefined
+      }
+      else {
+        return {
+          forModel: {
+            error: 'Unknown category',
+            hint: 'Retry with query only (English), without category.',
+            suggestions: slugs.slice(0, 8),
+          },
+          events: [],
+        }
       }
     }
   }
 
   let products: Product[]
   try {
-    const data = await fetchDummyJsonProducts({
-      q: query,
-      category,
-      limit: ASSISTANT_SEARCH_FETCH_LIMIT,
-      skip: 0,
-    })
-    products = data.products
+    products = await loadProductsRobust(query, categories)
   }
   catch {
     return toolError('Catalog request failed')
   }
 
+  // DummyJSON "bike" hits motorcycles — keep true bicycle intent empty.
+  const bicycleIntent = query !== undefined && /^(bicycles?|bike|велосипед)/i.test(query)
+  if (bicycleIntent) {
+    products = products.filter((product) => {
+      const hay = `${product.title} ${product.category}`.toLowerCase()
+      return !hay.includes('motorcycle') && !hay.includes('scooter')
+    })
+  }
+
+  let nearestProducts: Product[] | undefined
   if (maxPrice !== undefined) {
-    products = products.filter(product =>
+    const within = products.filter(product =>
       discountedUnit(product.price, product.discountPercentage) <= maxPrice,
     )
+    if (within.length === 0 && products.length > 0 && !bicycleIntent) {
+      nearestProducts = sortProducts(products, 'price_asc').slice(0, 3)
+    }
+    products = within
+  }
+  if (bicycleIntent && products.length === 0) {
+    return {
+      forModel: {
+        products: [],
+        note: 'No bicycles in the Atelier catalog. Motorcycle category is unrelated — do not offer it as a bicycle substitute unless the user asks for motorcycles.',
+      },
+      events: [],
+    }
   }
 
-  if (sort === 'price_asc') {
-    products = [...products].sort((left, right) => {
-      const diff = discountedUnit(left.price, left.discountPercentage)
-        - discountedUnit(right.price, right.discountPercentage)
-      return diff !== 0 ? diff : left.id - right.id
-    })
-  }
-  else if (sort === 'rating_desc') {
-    products = [...products].sort((left, right) => {
-      const diff = right.rating - left.rating
-      return diff !== 0 ? diff : left.id - right.id
-    })
-  }
-
-  products = products.slice(0, ASSISTANT_SEARCH_RESULT_LIMIT)
+  products = sortProducts(products, sort).slice(0, ASSISTANT_SEARCH_RESULT_LIMIT)
   const cards = products.map(toCard)
+  const nearestCards = nearestProducts?.map(toCard) ?? []
   const events: AssistantEvent[] = cards.length > 0
     ? [{ type: 'products', items: cards }]
-    : []
+    : nearestCards.length > 0
+      ? [{ type: 'products', items: nearestCards }]
+      : []
 
   return {
-    forModel: { products: products.map(toModelProduct) },
+    forModel: {
+      products: products.map(toModelProduct),
+      ...(nearestProducts !== undefined
+        ? {
+            note: 'No items at or below max_price in this scope; nearestAboveBudget lists the cheapest alternatives.',
+            nearestAboveBudget: nearestProducts.map(toModelProduct),
+          }
+        : {}),
+    },
     events,
   }
 }
@@ -326,14 +496,16 @@ async function getProduct(args: Record<string, unknown>): Promise<AssistantToolR
       description: product.description.slice(0, ASSISTANT_DESCRIPTION_LIMIT),
       price: discountedUnit(product.price, product.discountPercentage),
       listPrice: roundMoney(product.price),
+      rating: product.rating,
       stock: product.stock,
       availabilityStatus: product.availabilityStatus,
       shippingInformation: product.shippingInformation,
       warrantyInformation: product.warrantyInformation,
       returnPolicy: product.returnPolicy,
       category: product.category,
+      note: 'DummyJSON has no review text — use rating and description only. Do not invent customer quotes.',
     },
-    events: [],
+    events: [{ type: 'products', items: [toCard(product)] }],
   }
 }
 
